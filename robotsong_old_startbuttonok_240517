@@ -1,0 +1,458 @@
+//Archive of my old Arduino robot song. The song is NOT in public domain but my property and may not be repliocated
+
+
+
+
+//1차 완료 2305222332
+//끝부분에 문제가 있다.
+#include "notes.h"
+#include <Tone.h>
+
+
+//note conv ok 2405152013
+//sound,sidesound,drum effect ok 2405160222
+//modify sidesound 
+
+//int speakerpin=12;  //change as it is miso pin
+//step sound spaces
+#define NP1 250 //step sound space 1
+#define NP2 127
+#define NP3 64
+#define NP4 32
+
+int speakerpin=7;//relocated 2405152007
+int redled=5;
+int greenled=9;
+int yellowled=10;
+int speaker2pin=6; //sidesound
+int beatpin=8;
+int evenodd=0; //even-0,red odd-1 green
+int rstpin=2; //reset pin, push to play after 3 seconds 2405262236
+int steppin=3; //
+const int step_pin=11; //STEP pin
+const int dir_pin=12; //DIR pin
+typedef struct t_step_note
+{
+  int note;
+  int space;
+
+
+};
+
+volatile byte playstate=0; //0:reset 1:playing 
+volatile byte stepstate=0;//0:normal 1:stepping
+volatile byte prev_stepstate=0; //previous step state
+
+int i=0;//song note index now global
+int temp_idx=0;  //save step index 
+
+Tone tone1;//main sound
+Tone tone2;//side sound
+Tone tone3;//beat sound
+
+//int note[]={2093,2349,2637,2793,3136,3520,3951,4186};
+/*
+int note[]={587,1,440,1,659,2,587,523,1,587,1,440,1,659,2,587,523,1,//0
+            466,1,349,1,587,2,523,466,1,523,1,587,1,659,523,587,0,0,//*0
+
+            587,2,587,1,587,1,659,523,523,440,1,587,1,587,587,1,659,523,523,440,1,//1
+            466,1,587,1,587,1 , 523,523,523,392,440,1,  698,698,659,449,449,1, 449,1,698,698,1,659,449,449,1,
+            587,1,587,587,1,659,523,523,440,1,587,1,587,587,1,659,523,523,440,1,
+            466,1,587,587,1 , 523,523,659,698,587,1,698,698,659,523,587,1,587,1,698,698,659,523,587,1,//*1
+
+            466,1,466,466,1,466,466,466,466,1,466,466,440,1,392,392,392,466,440,1, //2
+            698,698,1,659,440,440,1,440,1,698,698,659,440,440,1,
+            466,1,466,466,1,466,466,466,466,1,466,1,466,440,1,392,392,1,392,466,440,1,
+            659,1,659,587,1,554,1,659,0,//*2
+            
+            587,1,587,659,1,698,698,698,440,466,1,466,523,587,1,//3
+            523,1,523,587,1,659,659,659,523,1,587,1,698,659,523,440,1,587,1,698,659,523,440,1,
+            587,1,587,659,1,698,698,698,440,466,1,466,523,587,1,
+            523,1,523,587,1,659,659,659,523,1,587,1,698,659,523,587,1,587,1,698,659,523,587,1,
+
+            587,1,440,1,659,2,587,523,1,587,1,440,1,659,2,587,523,1,
+            466,1,349,1,587,2,523,466,1,523,1,587,1,659,523,587,0,0,
+            
+            587,1,880,698,784,587,587,1,587,1,932,698,784,659,659,1,
+            523,1,784,659,784,659,659,1,587,1,587,587,659,523,440,440,1,
+            587,1,880,698,784,587,587,1,587,1,932,698,784,659,659,1,
+            523,1,784,659,784,659,659,1,659,1,523,587,1,1,1,
+
+
+
+            //*3
+
+            587,587,698,698,1,659,1,523,1,587,587,698,698,1,659,523,1,//e
+            466,466,587,587,1,659,1,523,587,0,0//*e
+
+           
+
+
+
+
+};
+*/
+
+//int->short does not reduce memory usage remains the same 2405152010
+
+int note[]={    ND5,1,NA4,1,NE5,2,ND5,NC5,1,ND5,1,NA4,1,NE5,2,ND5,NC5,1, //0
+                NA4B4,2,NF4,1,ND5,2,NC5,NA4B4,1,NC5,1,ND5,1,NE5,NC5,ND5,0,0,//*0  //ok 2405141721
+              
+                ND5,1,ND5,ND5,NE5,NC5,NC5,NA4,ND5,1,ND5,ND5,NE5,NC5,NC5,NA4,1, //1
+                NA4B4,1,ND5,ND5,NC5,NC5,NC5,NG4,NA4,1,NF5,NF5,NE5,NA4,NA4,1,
+                NA4,1,NF5,NF5,NE5,NA4,NA4,1, //ok 2405141729
+               
+                ND5,1,ND5,ND5,NE5,NC5,NC5,NA4,1,ND5,1,ND5,ND5,1,NE5,NC5,NC5,NA4,1,//note: this separator is required or NA4B4 will zerr 2405151744
+                NA4B4,1,ND5,ND5,NC5,NC5,NE5,NF5,ND5,1,NF5,1,NF5,NE5,NC5,ND5,1,ND5,1,NF5,NF5,NE5,NC5,ND5,1, //*1
+               
+               //1 ok 2405151228
+              
+                NA4B4,1,NA4B4,NA4B4,1,NA4B4,NA4B4,NA4B4,NA4B4,0,   NA4B4,NA4B4,NA4B4,NA4,1,   NG4,NG4,NG4,NA4B4,NA4,1,//2
+              
+                NF5,NF5,1,NE5,NA4,NA4,1,NA4,1,NF5,NF5,NE5,NA4,NA4,1,  //ok changed to original last 659 was missing
+              
+                NA4B4,1,NA4B4,NA4B4,NA4B4,NA4B4,NA4B4,NA4B4,1,NA4B4,NA4B4,NA4B4,NA4,NG4,NG4,1,NG4,NA4B4,NA4,1,//err
+                NE5,1,NE5,ND5,1,NC5D5,1,NE5,0,//*2   //2 ok 2405151918
+                
+                
+                ND5,1,ND5,NE5,1,NF5,NF5,NF5,NA4,NA4B4,1,NA4B4,NC5,ND5,1,//3
+                NC5,1,NC5,ND5,1,NE5,NE5,NE5,NC5,1,ND5,1,NF5,NE5,NC5,NA4,1,ND5,1,NF5,NE5,NC5,NA4,1, //ok 2405161919
+                
+                
+                ND5,1,ND5,NE5,1,NF5,NF5,NF5,NA4,NA4B4,1,NA4B4,NC5,ND5,1,
+                NC5,1,NC5,ND5,1,NE5,NE5,NE5,NC5,1,ND5,1,NF5,NE5,NC5,ND5,1,ND5,1,NF5,NE5,NC5,ND5,1,     //ok 2405151920           
+                               
+                ND5,1,NA4,1,NE5,2,ND5,NC5,1,ND5,1,NA4,1,NE5,2,ND5,NC5,1,
+                NA4B4,1,NF4,1,ND5,2,NC5,NA4B4,1,NC5,1,ND5,1,NE5,NC5,ND5,0,0,
+
+                ND5,1,NA5,NF5,NG5,ND5,ND5,1,ND5,1,NA5B5,NF5,NG5,NE5,NE5,1,//ok
+                NC5,1,NG5,NE5,NG5,NE5,NE5,1,ND5,1,ND5,ND5,NE5,NC5,NA4,NA4,1,//ok
+                
+                ND5,1,NA5,NF5,NG5,ND5,ND5,1,ND5,1,NA5B5,NF5,NG5,NE5,NE5,1, //ok 2405151951
+                NC5,1,NG5,NE5,NG5,NE5,NE5,1,NC5,ND5,NF5,NF5,NE5,NC5,ND5,1,
+                
+               
+                NC5,ND5,ND5,NF5,NF5,NE5,NC5,ND5,1,1,1,
+                
+                  //*3
+                
+                 ND5,ND5,NF5,NF5,NE5,1,NC5,1,ND5,ND5,NF5,NF5,1,NE5,NC5,1,//e
+                 NA4B4,NA4B4,ND5,ND5,1,NE5,1,NC5,ND5,0,0//*e
+                 
+                 
+
+};
+
+//sidesound
+int note1[]={    ND4,1,-1,1,NE4,2,-1,-1,1,ND4,1,-1.1,NE4,2,-1,-1,1, //0
+                NA3B3,2,-1,1,ND4,2,-1,-1,1,NC4,1,-1,1,NE4,-1,ND4,0,0,//*0  //ok 2405141721
+              
+                ND4,1,-1,-1,NE4,-1,-1,NA3,ND4,1,-1,-1,NE4,-1,-1,-1,1, //1
+                NA3B3,1,-1,-1,NC4,-1,-1,-1,NA3,1,-1,-1,NE4,-1,NA3,1,
+                NA3,1,-1,-1,NE4,-1,-1,1, //ok 2405141729  //2405160043
+               
+                ND4,1,-1,-1, NE4,-1,NC4,-1,1, ND4,1,-1,-1,1 ,NE4,-1,NC4,-1,1,//note: this separator is required or NA4B4 will zerr 2405151744
+                NA3B3,1,-1,-1, NC4,-1,NE4,-1, ND4,1,-1,1,-1, NE4,-1,ND4,1, ND4,1,-1,-1, NE4,-1,-1,1, //*1
+               
+               //1 ok 2405151228
+              
+                NA3B3,1,-1,-1,1,NA3B3,-1,-1,-1,0,   NA3B3,-1,-1,-1,1,   NG3,-1,-1,-1,NA3,1,//2
+              
+                NF4,-1,1,NE4,-1,NA3,1,NA3,1,-1,-1,NE4,-1,NA3,1,  //ok changed to original last 659 was missing
+              
+                NA3B3,1,-1,-1,NA3B3,-1,NA3B3,-1,1,NA3B3,-1,-1,NA3,-1,NG3,1,-1,-1,NA3,1,//err
+                NE4,1,-1,-1,1,NC4D4,1,-1,0,//*2   //2 ok 2405151918   ok 2405160051
+                
+                
+                ND4,1,-1,-1,1, NF4,-1,-1,-1,NA3B3,1, -1,-1,ND4,1,//3
+                NC4,1,-1,-1,1, NE4,-1,-1,-1,1, ND4,1,-1,NE4, -1,-1,1,-1,1, NF4,-1,NC4,-1,1, //ok 2405151919  2405160102
+                
+                
+                ND4,1,-1,-1,1 ,NF4,-1,-1,-1,NA3B3,1, NA3B3,-1,ND4,1,
+                NC4,1,-1,-1,1, NE4,-1,-1,-1,1, ND4,1,-1,NE4,-1,-1,1 ,ND4,1,-1,NE4,-1,-1,1,     //ok 2405151920  2405160105         
+                               
+
+                ND4,1,-1,1,-1,2,ND4,-1,1,ND4,1,-1,1,NE4,2,-1,NC4,1,
+                NA3B3,1,-1,1,-1,2,NC4,-1,1,-1,1,ND4,1,-1,-1,-1,0,0,  //ok 2405160110
+
+
+                ND4,1,-1,-1,NG4,-1,-1,1, ND4,1,-1,-1,NG4,-1,-1,1,//ok
+                NC4,1,-1,-1,NG4,-1,-1,1, ND4,1,-1,-1,NE4,-1,-1,-1,1,//ok //2405160118
+                
+                ND4,1,-1,-1,NG4,-1,-1,1,ND4,1,-1,-1,NG4,-1,-1,1, //ok 2405151951
+                NC4,1,-1,-1,NG4,-1,-1,1,NC4,-1,-1,NF4,-1,NC4,-1,1,
+                
+               
+                NC4,-1,-1,-1,NF4,-1,NC4,ND4,1,1,1,//2405160153
+                
+                  //*3
+                
+                 ND4,-1,NF4,-1,NE4,1,-1,1 ,ND4,-1,NF4,-1,1,NE4,-1,1,//e
+                 NA3B3,-1,ND4,-1,1, NE4,1,-1,ND4,0,0//*e  //2405160200
+                 
+                 
+
+};
+t_step_note notestep[]={    ND5,1,NA4,1,NE5,2,ND5,NC5,1,ND5,1,NA4,1,NE5,2,ND5,NC5,1, //0
+                NA4B4,2,NF4,1,ND5,2,NC5,NA4B4,1,NC5,1,ND5,1,NE5,NC5,ND5,0,0,//*0  //ok 2405141721
+              
+                ND5,1,ND5,ND5,NE5,NC5,NC5,NA4,ND5,1,ND5,ND5,NE5,NC5,NC5,NA4,1, //1
+                NA4B4,1,ND5,ND5,NC5,NC5,NC5,NG4,NA4,1,NF5,NF5,NE5,NA4,NA4,1,
+                NA4,1,NF5,NF5,NE5,NA4,NA4,1, //ok 2405141729
+               
+                ND5,1,ND5,ND5,NE5,NC5,NC5,NA4,1,ND5,1,ND5,ND5,1,NE5,NC5,NC5,NA4,1,//note: this separator is required or NA4B4 will zerr 2405151744
+                NA4B4,1,ND5,ND5,NC5,NC5,NE5,NF5,ND5,1,NF5,1,NF5,NE5,NC5,ND5,1,ND5,1,NF5,NF5,NE5,NC5,ND5,1, //*1
+               
+               //1 ok 2405151228
+              
+                NA4B4,1,NA4B4,NA4B4,1,NA4B4,NA4B4,NA4B4,NA4B4,0,   NA4B4,NA4B4,NA4B4,NA4,1,   NG4,NG4,NG4,NA4B4,NA4,1,//2
+              
+                NF5,NF5,1,NE5,NA4,NA4,1,NA4,1,NF5,NF5,NE5,NA4,NA4,1,  //ok changed to original last 659 was missing
+              
+                NA4B4,1,NA4B4,NA4B4,NA4B4,NA4B4,NA4B4,NA4B4,1,NA4B4,NA4B4,NA4B4,NA4,NG4,NG4,1,NG4,NA4B4,NA4,1,//err
+                NE5,1,NE5,ND5,1,NC5D5,1,NE5,0,//*2   //2 ok 2405151918
+                
+                
+                ND5,1,ND5,NE5,1,NF5,NF5,NF5,NA4,NA4B4,1,NA4B4,NC5,ND5,1,//3
+                NC5,1,NC5,ND5,1,NE5,NE5,NE5,NC5,1,ND5,1,NF5,NE5,NC5,NA4,1,ND5,1,NF5,NE5,NC5,NA4,1, //ok 2405161919
+                
+                
+                ND5,1,ND5,NE5,1,NF5,NF5,NF5,NA4,NA4B4,1,NA4B4,NC5,ND5,1,
+                NC5,1,NC5,ND5,1,NE5,NE5,NE5,NC5,1,ND5,1,NF5,NE5,NC5,ND5,1,ND5,1,NF5,NE5,NC5,ND5,1,     //ok 2405151920           
+                               
+                ND5,1,NA4,1,NE5,2,ND5,NC5,1,ND5,1,NA4,1,NE5,2,ND5,NC5,1,
+                NA4B4,1,NF4,1,ND5,2,NC5,NA4B4,1,NC5,1,ND5,1,NE5,NC5,ND5,0,0,
+
+                ND5,1,NA5,NF5,NG5,ND5,ND5,1,ND5,1,NA5B5,NF5,NG5,NE5,NE5,1,//ok
+                NC5,1,NG5,NE5,NG5,NE5,NE5,1,ND5,1,ND5,ND5,NE5,NC5,NA4,NA4,1,//ok
+                
+                ND5,1,NA5,NF5,NG5,ND5,ND5,1,ND5,1,NA5B5,NF5,NG5,NE5,NE5,1, //ok 2405151951
+                NC5,1,NG5,NE5,NG5,NE5,NE5,1,NC5,ND5,NF5,NF5,NE5,NC5,ND5,1,
+                
+               
+                NC5,ND5,ND5,NF5,NF5,NE5,NC5,ND5,1,1,1,
+                
+                  //*3
+                
+                 ND5,ND5,NF5,NF5,NE5,1,NC5,1,ND5,ND5,NF5,NF5,1,NE5,NC5,1,//e
+                 NA4B4,NA4B4,ND5,ND5,1,NE5,1,NC5,ND5,0,0//*e
+};
+//adjust for stepper
+
+
+
+void setup() {
+  // put your setup code here, to run once:
+
+  tone1.begin(speakerpin);
+  tone2.begin(speaker2pin);//i152357f disabled adjust speed at playsound loop accordingly as it becomes faster 2405
+ // tone3.begin(beatpin);
+
+  pinMode(LED_BUILTIN,OUTPUT);
+  pinMode(redled,OUTPUT); //5
+  pinMode(greenled,OUTPUT);//9
+  pinMode(yellowled,OUTPUT);
+  pinMode(rstpin,INPUT);//2
+  pinMode(steppin,INPUT);//3
+  attachInterrupt(digitalPinToInterrupt(rstpin), isr, FALLING);
+  attachInterrupt(digitalPinToInterrupt(steppin),isr_step,FALLING);
+  
+  //pinMode(beatpin,OUTPUT);
+  /*
+  int elementCount=sizeof(note)/sizeof(int);
+  for(int i=0;i<elementCount;i++)
+  {
+    digitalWrite(LED_BUILTIN,HIGH);
+    if(note[i]>4)
+    tone(speakerpin,note[i],250); //500->250
+    else if(note[i]==0)
+    delay(150);
+    else if (note[i]==1)//else if(note[1]=1)
+    delay(100);
+    else if (note[i]==2)// else if(note[2]==2)
+    delay(50);
+    //digitalWrite(LED_BUILTIN,LOW);
+    delay(200); //750->500->200 2305221957
+    digitalWrite(LED_BUILTIN,LOW);
+    delay(50);
+  }
+  */
+ // playsound();
+
+}
+
+void loop() {
+  // put your main code here, to run repeatedly:
+  //tone(speakerpin,500,1000);
+  //delay(2000);
+  ////https://velog.io/@zero-black/Arduino-Counter-with-Push-Button-2-Interrupt
+//OK 2405171214
+//google:arduino pushbutton interrupt
+  if(playstate)
+  {
+    delay(2000);
+    playsound();
+  }//call playsound
+  //else continue; ERR 2405171237
+  if(stepstate)
+  {
+    if(prev_stepstate==1)//step button pushed
+    {
+      prev_stepstate=stepstate;
+      stepstate=0;
+      playsound();//resume
+    }
+  }
+
+}
+
+void isr()//ISR merely sets the current state,e.g. current state is inverted if button is pushed LONG 2405171239 
+
+{
+  playstate=!playstate;
+  
+}
+void isr_step()//isr for flipping stet state
+{
+  stepstate=!stepstate;
+
+}
+
+
+void playsound()//OK 2405
+{
+   if(!playstate) return;//play only once
+    //2405160235
+ 
+int elementCount=sizeof(note)/sizeof(int);
+  //for(i=0;i<elementCount;i++) //now global 2405171607
+   for(i=temp_idx;i<elementCount;i++) //now global 2405171607
+  {
+    temp_idx=i;
+     if(stepstate)  //stepstate=1 just after button pushed
+    {
+      // temp_idx=i;
+      return;
+    }
+    digitalWrite(LED_BUILTIN,HIGH);
+    //tone(beatpin,1,250); //drum
+    if(note[i]>4)
+    {
+    //tone(speakerpin,note[i],250); //500->250
+    
+    //tone(beatpin,note[i],250);
+    //tone(beatpin,1000,500);
+       tone1.play(note[i],250);//mainsound
+       //one1.play(0,25);//break
+       delay(40);//break
+       //tone1.play(note[i]);
+       if(note1[i]>4)
+       {
+       tone2.play(note1[i]);//listens like working somehow in this way 2405152221
+       
+       }
+       //drum 
+       /*
+       analogWrite(beatpin,256);
+       delay(50);
+       analogWrite(beatpin,0);
+       */
+       //analogWrite(beatpin,32);
+       //delay(100);  remove beat as it is causing too many unsolvable problems now 2405162155
+       /*
+       delay(10);
+       analogWrite(beatpin,0);
+       analogWrite(beatpin,255);
+       delay(10);
+       analogWrite(beatpin,0);
+       analogWrite(beatpin,127);
+       delay(10);
+       analogWrite(beatpin,0);//2405160222
+       */
+      
+       //tone3.play(1000);
+       
+       //tone2.play(note1[i],250);
+       //tone3.play(1,200);//beat
+       //tone1.play(0);
+      // delay(100);
+    
+    }//if note[i]>4
+    
+    
+    else if(note[i]==0)
+    delay(150);
+    else if (note[i]==1)//else if(note[1]=1)
+    delay(100);
+    else if (note[i]==2)// else if(note[2]==2)
+    delay(50);
+    //digitalWrite(LED_BUILTIN,LOW);
+    //analogWrite(beatpin,0);
+
+   /*
+    digitalWrite(redled,HIGH);
+    digitalWrite(greenled,HIGH);
+    digitalWrite(yellowled,HIGH);
+    */
+
+    int which_led=i%6;
+    //select(which_led)
+    switch(which_led)
+      {
+       case 0:
+         digitalWrite(redled,HIGH);
+         digitalWrite(greenled,LOW);
+         digitalWrite(yellowled,LOW);
+         break;
+       case 1:
+         digitalWrite(redled,LOW);
+         digitalWrite(greenled,HIGH);
+         digitalWrite(yellowled,LOW);
+         break;
+       case 3:
+         digitalWrite(redled,LOW);
+         digitalWrite(greenled,LOW);
+         digitalWrite(yellowled,HIGH);
+         break;
+       case 4:
+         digitalWrite(redled,LOW);
+         digitalWrite(greenled,HIGH);
+         digitalWrite(yellowled,LOW);
+         break;
+      case 5:
+         digitalWrite(redled,HIGH);
+         digitalWrite(greenled,LOW);
+         digitalWrite(yellowled,HIGH);
+         break;
+
+      case 6:
+         digitalWrite(redled,HIGH);
+         digitalWrite(greenled,HIGH);
+         digitalWrite(yellowled,HIGH);
+         break;
+      default:
+         break;
+      }
+
+
+    delay(200); //750->500->200 2305221957 
+    //delay(50);//adjust this value for song speed,50 if tone2 disabled
+    digitalWrite(LED_BUILTIN,LOW);
+    
+    digitalWrite(redled,LOW);
+    digitalWrite(greenled,LOW);
+    digitalWrite(yellowled,LOW);
+    
+
+    delay(20);
+    if(!playstate) return;//stop playing
+    //2405160235
+   
+   
+  }//for i
+  playstate=0;//reset playstate so that it won't play again after function returns, plays again if button pushed long 2405171250
+  stepstate=0;
+  temp_idx=0;  //set to 0 if ended
+
+  return; //only play once
+}
